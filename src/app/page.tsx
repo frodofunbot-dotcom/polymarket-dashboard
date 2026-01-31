@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import type { DashboardData } from "@/lib/types";
 
@@ -42,11 +42,98 @@ function formatTradeTime(ts: number): string {
   });
 }
 
+function formatChartTime(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleTimeString("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+}
+
+// Simple SVG line chart for portfolio value over time
+function PortfolioChart({
+  history,
+}: {
+  history: { time: string; value: number }[];
+}) {
+  if (history.length < 2) {
+    return (
+      <div className="flex items-center justify-center h-48 text-zinc-600 text-sm">
+        Collecting data points...
+      </div>
+    );
+  }
+
+  const values = history.map((h) => h.value);
+  const min = Math.min(...values) * 0.995;
+  const max = Math.max(...values) * 1.005;
+  const range = max - min || 1;
+
+  const w = 600;
+  const h = 180;
+  const padding = 4;
+
+  const points = history.map((d, i) => {
+    const x = padding + (i / (history.length - 1)) * (w - padding * 2);
+    const y = h - padding - ((d.value - min) / range) * (h - padding * 2);
+    return `${x},${y}`;
+  });
+
+  const first = values[0];
+  const last = values[values.length - 1];
+  const trend = last >= first ? "#4ade80" : "#f87171";
+
+  // Fill area under the line
+  const areaPoints = [
+    `${padding},${h - padding}`,
+    ...points,
+    `${w - padding},${h - padding}`,
+  ].join(" ");
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-48">
+        {/* Grid lines */}
+        {[0.25, 0.5, 0.75].map((pct) => {
+          const y = h - padding - pct * (h - padding * 2);
+          return (
+            <line
+              key={pct}
+              x1={padding}
+              y1={y}
+              x2={w - padding}
+              y2={y}
+              stroke="#27272a"
+              strokeWidth="1"
+            />
+          );
+        })}
+        {/* Filled area */}
+        <polygon points={areaPoints} fill={trend} opacity="0.1" />
+        {/* Line */}
+        <polyline
+          points={points.join(" ")}
+          fill="none"
+          stroke={trend}
+          strokeWidth="2"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <div className="flex justify-between text-xs text-zinc-600 mt-1 px-1">
+        <span>{formatChartTime(history[0].time)}</span>
+        <span>{formatChartTime(history[history.length - 1].time)}</span>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
   const [tick, setTick] = useState(0);
+  const [history, setHistory] = useState<{ time: string; value: number }[]>([]);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -64,6 +151,15 @@ export default function Dashboard() {
       setData(json);
       setLastUpdated(json.lastUpdated);
       setError("");
+
+      // Add to history for chart (keep last 100 points = ~33 minutes)
+      setHistory((prev) => {
+        const next = [
+          ...prev,
+          { time: json.lastUpdated, value: json.portfolioValue },
+        ];
+        return next.slice(-100);
+      });
     } catch {
       setError("Connection error");
     }
@@ -75,7 +171,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Tick every second to update "last updated" display
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);
@@ -126,8 +221,7 @@ export default function Dashboard() {
       {data && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <Card label="USDC Balance" value={formatUsd(data.usdcBalance)} />
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
             <Card
               label="Portfolio Value"
               value={formatUsd(data.portfolioValue)}
@@ -138,9 +232,29 @@ export default function Dashboard() {
               valueClass={pnlColor(data.totalPnl)}
             />
             <Card
+              label="Win / Loss"
+              value={`${data.winCount}W / ${data.lossCount}L`}
+              valueClass="text-white"
+            />
+            <Card
+              label="Win Rate"
+              value={`${data.winRate.toFixed(0)}%`}
+              valueClass={
+                data.winRate >= 50 ? "text-green-400" : "text-red-400"
+              }
+            />
+            <Card
               label="Positions"
               value={data.totalPositions.toString()}
             />
+          </div>
+
+          {/* Portfolio Chart */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-8">
+            <h2 className="text-lg font-semibold text-white mb-4">
+              Portfolio Value
+            </h2>
+            <PortfolioChart history={history} />
           </div>
 
           {/* Open Positions */}

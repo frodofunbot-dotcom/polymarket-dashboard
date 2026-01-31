@@ -21,20 +21,21 @@ export async function GET() {
   // Total P&L across all positions
   const totalPnl = positions.reduce((sum, p) => sum + p.cashPnl, 0);
 
-  // Win rate from resolved positions
-  const resolved = positions.filter(
-    (p) => p.redeemable || p.curPrice === 0 || p.curPrice === 1
-  );
-  const wins = resolved.filter(
-    (p) => p.curPrice === 1 || p.redeemable
-  ).length;
-  const winRate = resolved.length > 0 ? (wins / resolved.length) * 100 : 0;
+  // Win/loss from positions with P&L
+  const winning = positions.filter((p) => p.cashPnl > 0.01);
+  const losing = positions.filter((p) => p.cashPnl < -0.01);
+  const winCount = winning.length;
+  const lossCount = losing.length;
+  const decided = winCount + lossCount;
+  const winRate = decided > 0 ? (winCount / decided) * 100 : 0;
 
   const data: DashboardData = {
     usdcBalance,
     portfolioValue,
     totalPnl,
     winRate,
+    winCount,
+    lossCount,
     totalPositions: positions.length,
     positions: positions.sort((a, b) => b.currentValue - a.currentValue),
     trades: trades.sort((a, b) => b.timestamp - a.timestamp),

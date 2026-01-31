@@ -36,6 +36,8 @@ export interface DashboardData {
   portfolioValue: number;
   totalPnl: number;
   winRate: number;
+  winCount: number;
+  lossCount: number;
   totalPositions: number;
   positions: Position[];
   trades: Trade[];
