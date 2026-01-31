@@ -67,3 +67,40 @@ export async function fetchTrades(
     slug: t.slug || "",
   }));
 }
+
+/**
+ * Calculate true P&L from full activity history (trades + redemptions).
+ * This avoids the issue where redeemed winning positions disappear from
+ * the positions API, making the P&L look worse than it actually is.
+ */
+export async function fetchTruePnl(
+  wallet: string,
+  positions: Position[]
+): Promise<number> {
+  const res = await fetch(
+    `${DATA_API}/activity?user=${wallet}&limit=1000`,
+    { cache: "no-store" }
+  );
+
+  if (!res.ok) return 0;
+
+  const activities: any[] = await res.json();
+
+  let totalBought = 0;
+  let totalSold = 0;
+  let totalRedeemed = 0;
+
+  for (const a of activities) {
+    const usdc = parseFloat(a.usdcSize || "0");
+    if (a.type === "TRADE") {
+      if (a.side === "BUY") totalBought += usdc;
+      else totalSold += usdc;
+    } else if (a.type === "REDEEM") {
+      totalRedeemed += usdc;
+    }
+  }
+
+  const positionValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
+
+  return totalSold + totalRedeemed + positionValue - totalBought;
+}

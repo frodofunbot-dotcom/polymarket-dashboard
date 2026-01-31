@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchPositions, fetchTrades } from "@/lib/polymarket";
+import { fetchPositions, fetchTrades, fetchTruePnl } from "@/lib/polymarket";
 import { fetchUsdcBalance } from "@/lib/balance";
 import { getWalletAddress } from "@/lib/constants";
 import type { DashboardData } from "@/lib/types";
@@ -18,8 +18,9 @@ export async function GET() {
   const positionValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
   const portfolioValue = usdcBalance + positionValue;
 
-  // Total P&L across all positions
-  const totalPnl = positions.reduce((sum, p) => sum + p.cashPnl, 0);
+  // True P&L from full activity history (trades + redemptions)
+  // This accounts for redeemed positions that no longer appear in the positions API
+  const totalPnl = await fetchTruePnl(wallet, positions);
 
   // Win/loss from positions with P&L
   const winning = positions.filter((p) => p.cashPnl > 0.01);
