@@ -1,4 +1,10 @@
-import { POLYGON_RPCS, USDC_CONTRACT } from "./constants";
+import { USDC_CONTRACT } from "./constants";
+
+const RPCS = [
+  "https://polygon-rpc.com",
+  "https://1rpc.io/matic",
+  "https://polygon.meowrpc.com",
+];
 
 export async function fetchUsdcBalance(wallet: string): Promise<number> {
   // ABI-encode balanceOf(address): 0x70a08231 + address padded to 32 bytes
@@ -12,26 +18,30 @@ export async function fetchUsdcBalance(wallet: string): Promise<number> {
     id: 1,
   });
 
-  // Try each RPC endpoint until one works
-  for (const rpc of POLYGON_RPCS) {
+  for (const rpc of RPCS) {
     try {
       const res = await fetch(rpc, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "User-Agent": "polymarket-dashboard/1.0",
+        },
         body: payload,
         cache: "no-store",
       });
 
+      if (!res.ok) continue;
+
       const json = await res.json();
-      if (json.result && json.result !== "0x" && json.result !== "0x0") {
-        return parseInt(json.result, 16) / 1e6;
+      const hex = json?.result;
+      if (typeof hex === "string" && hex.length > 2) {
+        const val = parseInt(hex, 16) / 1e6;
+        if (val > 0) return val;
       }
     } catch {
-      // Try next RPC
       continue;
     }
   }
 
-  console.error("All RPC endpoints failed for balance fetch");
   return 0;
 }
