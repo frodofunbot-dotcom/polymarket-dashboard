@@ -31,6 +31,20 @@ export interface Trade {
   slug: string;
 }
 
+export interface ArbStats {
+  totalSets: number;
+  totalSpent: number;
+  totalLegs: number;
+  sets: ArbSet[];
+}
+
+export interface ArbSet {
+  timestamp: number;
+  legs: number;
+  totalCost: number;
+  outcomes: string[];
+}
+
 export interface DashboardData {
   usdcBalance: number;
   portfolioValue: number;
@@ -42,6 +56,7 @@ export interface DashboardData {
   totalPositions: number;
   positions: Position[];
   trades: Trade[];
+  arbStats: ArbStats;
   lastUpdated: string;
   walletAddress: string;
 }

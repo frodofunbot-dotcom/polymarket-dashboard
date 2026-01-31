@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchPositions, fetchTrades, fetchTruePnl } from "@/lib/polymarket";
+import { fetchPositions, fetchTrades, fetchTruePnl, detectArbSets } from "@/lib/polymarket";
 import { fetchUsdcBalance } from "@/lib/balance";
 import { getWalletAddress } from "@/lib/constants";
 import type { DashboardData } from "@/lib/types";
@@ -30,6 +30,8 @@ export async function GET() {
   const decided = winCount + lossCount;
   const winRate = decided > 0 ? (winCount / decided) * 100 : 0;
 
+  const arbStats = detectArbSets(trades);
+
   const data: DashboardData = {
     usdcBalance,
     portfolioValue,
@@ -41,6 +43,7 @@ export async function GET() {
     totalPositions: positions.length,
     positions: positions.sort((a, b) => b.currentValue - a.currentValue),
     trades: trades.sort((a, b) => b.timestamp - a.timestamp),
+    arbStats,
     lastUpdated: new Date().toISOString(),
     walletAddress: wallet,
   };

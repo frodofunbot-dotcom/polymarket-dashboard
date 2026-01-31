@@ -1,4 +1,4 @@
-import { Position, Trade } from "./types";
+import { Position, Trade, ArbStats, ArbSet } from "./types";
 import { DATA_API } from "./constants";
 
 export async function fetchPositions(wallet: string): Promise<Position[]> {
@@ -66,6 +66,51 @@ export async function fetchTrades(
     outcomeIndex: parseInt(t.outcomeIndex || "0", 10),
     slug: t.slug || "",
   }));
+}
+
+/**
+ * Detect arb trade sets from trade history.
+ * An arb set = cluster of 3+ BUY trades on different conditionIds within 120 seconds.
+ */
+export function detectArbSets(trades: Trade[]): ArbStats {
+  const buys = trades
+    .filter((t) => t.side === "BUY")
+    .sort((a, b) => a.timestamp - b.timestamp);
+
+  const sets: ArbSet[] = [];
+  let i = 0;
+
+  while (i < buys.length) {
+    // Collect all BUYs within 120s of this one
+    const cluster: Trade[] = [buys[i]];
+    let j = i + 1;
+    while (j < buys.length && buys[j].timestamp - buys[i].timestamp <= 120) {
+      // Only group if different conditionId (different outcome)
+      if (!cluster.some((c) => c.conditionId === buys[j].conditionId)) {
+        cluster.push(buys[j]);
+      }
+      j++;
+    }
+
+    if (cluster.length >= 3) {
+      sets.push({
+        timestamp: cluster[0].timestamp,
+        legs: cluster.length,
+        totalCost: cluster.reduce((s, t) => s + t.usdcSize, 0),
+        outcomes: cluster.map((t) => t.outcome || t.title),
+      });
+      i = j; // skip past this cluster
+    } else {
+      i++;
+    }
+  }
+
+  return {
+    totalSets: sets.length,
+    totalSpent: sets.reduce((s, a) => s + a.totalCost, 0),
+    totalLegs: sets.reduce((s, a) => s + a.legs, 0),
+    sets,
+  };
 }
 
 /**

@@ -290,7 +290,7 @@ export default function Dashboard() {
               valueClass={pnlColor(data.totalPnl)}
             />
           </div>
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <Card
               label="Win / Loss"
               value={`${data.winCount}W / ${data.lossCount}L`}
@@ -307,6 +307,59 @@ export default function Dashboard() {
               label="Open Positions"
               value={data.totalPositions.toString()}
             />
+            <Card
+              label="Arb Bets"
+              value={data.arbStats.totalSets.toString()}
+              valueClass="text-blue-400"
+            />
+          </div>
+
+          {/* Arb Bot Status */}
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-lg font-semibold text-white">Arb Bot</h2>
+              <span className="px-2 py-1 rounded text-xs font-medium bg-green-900/40 text-green-400">
+                LIVE
+              </span>
+            </div>
+            {data.arbStats.totalSets === 0 ? (
+              <p className="text-zinc-500 text-sm">
+                Scanning for arbitrage opportunities. No trades executed yet.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <p className="text-zinc-500">Arb Sets</p>
+                    <p className="text-white font-medium">{data.arbStats.totalSets}</p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500">Total Legs</p>
+                    <p className="text-white font-medium">{data.arbStats.totalLegs}</p>
+                  </div>
+                  <div>
+                    <p className="text-zinc-500">Total Spent</p>
+                    <p className="text-white font-medium">{formatUsd(data.arbStats.totalSpent)}</p>
+                  </div>
+                </div>
+                {data.arbStats.sets.map((set, i) => (
+                  <div
+                    key={i}
+                    className="border-t border-zinc-800 pt-2 text-sm"
+                  >
+                    <div className="flex justify-between text-zinc-400">
+                      <span>{formatTradeTime(set.timestamp)}</span>
+                      <span>
+                        {set.legs} legs / {formatUsd(set.totalCost)}
+                      </span>
+                    </div>
+                    <div className="text-zinc-500 text-xs mt-1 truncate">
+                      {set.outcomes.join(" + ")}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Portfolio Chart */}
