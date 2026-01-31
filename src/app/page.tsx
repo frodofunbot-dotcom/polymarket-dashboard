@@ -258,91 +258,22 @@ export default function Dashboard() {
           </div>
 
           {/* Open Positions */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg mb-8">
-            <div className="px-4 py-3 border-b border-zinc-800">
-              <h2 className="text-lg font-semibold text-white">
-                Open Positions
-              </h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-zinc-500 text-left">
-                    <th className="px-4 py-3 font-medium">Market</th>
-                    <th className="px-4 py-3 font-medium">Outcome</th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Shares
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Entry
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Current
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      Value
-                    </th>
-                    <th className="px-4 py-3 font-medium text-right">
-                      P&L
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.positions.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={7}
-                        className="px-4 py-8 text-center text-zinc-600"
-                      >
-                        No open positions
-                      </td>
-                    </tr>
-                  ) : (
-                    data.positions.map((p, i) => (
-                      <tr
-                        key={`${p.asset}-${i}`}
-                        className="border-t border-zinc-800/50 hover:bg-zinc-800/30"
-                      >
-                        <td className="px-4 py-3 text-white max-w-[250px] truncate">
-                          {p.title}
-                        </td>
-                        <td className="px-4 py-3">
-                          <span
-                            className={
-                              p.outcome === "Up" || p.outcome === "Yes"
-                                ? "text-green-400"
-                                : "text-red-400"
-                            }
-                          >
-                            {p.outcome}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
-                          {p.size.toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
-                          ${p.avgPrice.toFixed(3)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
-                          ${p.curPrice.toFixed(3)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-zinc-300">
-                          {formatUsd(p.currentValue)}
-                        </td>
-                        <td
-                          className={`px-4 py-3 text-right font-medium ${pnlColor(
-                            p.cashPnl
-                          )}`}
-                        >
-                          {formatPnl(p.cashPnl)}
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <PositionsTable
+            title="Open Positions"
+            positions={data.positions.filter(
+              (p) => !p.redeemable && p.curPrice > 0 && p.curPrice < 1
+            )}
+            showResult={false}
+          />
+
+          {/* Closed / Resolved Positions */}
+          <PositionsTable
+            title="Closed Positions"
+            positions={data.positions.filter(
+              (p) => p.redeemable || p.curPrice === 0 || p.curPrice === 1
+            )}
+            showResult={true}
+          />
 
           {/* Trade History */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg">
@@ -466,6 +397,114 @@ function Card({
         {label}
       </p>
       <p className={`text-xl font-bold ${valueClass}`}>{value}</p>
+    </div>
+  );
+}
+
+function PositionsTable({
+  title,
+  positions,
+  showResult,
+}: {
+  title: string;
+  positions: DashboardData["positions"];
+  showResult: boolean;
+}) {
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg mb-8">
+      <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-white">{title}</h2>
+        <span className="text-sm text-zinc-500">{positions.length}</span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-zinc-500 text-left">
+              <th className="px-4 py-3 font-medium">Market</th>
+              <th className="px-4 py-3 font-medium">Outcome</th>
+              <th className="px-4 py-3 font-medium text-right">Shares</th>
+              <th className="px-4 py-3 font-medium text-right">Entry</th>
+              <th className="px-4 py-3 font-medium text-right">
+                {showResult ? "Exit" : "Current"}
+              </th>
+              <th className="px-4 py-3 font-medium text-right">P&L</th>
+              {showResult && (
+                <th className="px-4 py-3 font-medium text-right">Result</th>
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {positions.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={showResult ? 7 : 6}
+                  className="px-4 py-8 text-center text-zinc-600"
+                >
+                  None
+                </td>
+              </tr>
+            ) : (
+              positions.map((p, i) => {
+                const won = p.redeemable || p.curPrice === 1;
+                return (
+                  <tr
+                    key={`${p.asset}-${i}`}
+                    className="border-t border-zinc-800/50 hover:bg-zinc-800/30"
+                  >
+                    <td className="px-4 py-3 text-white max-w-[250px] truncate">
+                      {p.title}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={
+                          p.outcome === "Up" || p.outcome === "Yes"
+                            ? "text-green-400"
+                            : "text-red-400"
+                        }
+                      >
+                        {p.outcome}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right text-zinc-300">
+                      {p.size.toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-zinc-300">
+                      ${p.avgPrice.toFixed(3)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-zinc-300">
+                      {showResult
+                        ? won
+                          ? "$1.000"
+                          : "$0.000"
+                        : `$${p.curPrice.toFixed(3)}`}
+                    </td>
+                    <td
+                      className={`px-4 py-3 text-right font-medium ${pnlColor(
+                        p.cashPnl
+                      )}`}
+                    >
+                      {formatPnl(p.cashPnl)}
+                    </td>
+                    {showResult && (
+                      <td className="px-4 py-3 text-right">
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${
+                            won
+                              ? "bg-green-900/40 text-green-400"
+                              : "bg-red-900/40 text-red-400"
+                          }`}
+                        >
+                          {won ? "WIN" : "LOSS"}
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
