@@ -1,16 +1,17 @@
 import { NextResponse } from "next/server";
 import { fetchPositions, fetchTrades } from "@/lib/polymarket";
 import { fetchUsdcBalance } from "@/lib/balance";
-import { WALLET_ADDRESS } from "@/lib/constants";
+import { getWalletAddress } from "@/lib/constants";
 import type { DashboardData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const wallet = getWalletAddress();
   const [positions, trades, usdcBalance] = await Promise.all([
-    fetchPositions(WALLET_ADDRESS),
-    fetchTrades(WALLET_ADDRESS, 200),
-    fetchUsdcBalance(WALLET_ADDRESS),
+    fetchPositions(wallet),
+    fetchTrades(wallet, 200),
+    fetchUsdcBalance(wallet),
   ]);
 
   // Portfolio value = cash + all position values

@@ -1,6 +1,6 @@
-export const WALLET_ADDRESS =
-  process.env.WALLET_ADDRESS ||
-  "0x5bC5EB1DE002F3b514F6F4f90c61fB0d496be7ce";
+export function getWalletAddress(): string {
+  return process.env.WALLET_ADDRESS || "0x5bC5EB1DE002F3b514F6F4f90c61fB0d496be7ce";
+}
 
 export const DATA_API = "https://data-api.polymarket.com";
 export const POLYGON_RPC = "https://polygon-rpc.com";

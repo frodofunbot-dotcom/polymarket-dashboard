@@ -19,9 +19,12 @@ export async function fetchUsdcBalance(wallet: string): Promise<number> {
     });
 
     const json = await res.json();
-    if (json.result) {
-      // Convert hex to number, divide by 1e6 (USDC has 6 decimals)
-      return parseInt(json.result, 16) / 1e6;
+    console.log("RPC balance response:", JSON.stringify(json));
+    if (json.result && json.result !== "0x") {
+      const raw = parseInt(json.result, 16);
+      const balance = raw / 1e6;
+      console.log("Parsed balance:", balance);
+      return balance;
     }
     return 0;
   } catch (e) {
