@@ -33,6 +33,7 @@ export async function GET() {
   const data: DashboardData = {
     usdcBalance,
     portfolioValue,
+    positionValue,
     totalPnl,
     winRate,
     winCount,
@@ -41,6 +42,7 @@ export async function GET() {
     positions: positions.sort((a, b) => b.currentValue - a.currentValue),
     trades: trades.sort((a, b) => b.timestamp - a.timestamp),
     lastUpdated: new Date().toISOString(),
+    walletAddress: wallet,
   };
 
   return NextResponse.json(data, {

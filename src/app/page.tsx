@@ -51,6 +51,46 @@ function formatChartTime(iso: string): string {
   });
 }
 
+// Fetch USDC balance client-side (browser -> Polygon RPC).
+// Public RPCs block cloud server IPs (Vercel) but allow browser requests.
+const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
+const RPCS = [
+  "https://polygon-rpc.com",
+  "https://1rpc.io/matic",
+  "https://polygon-bor-rpc.publicnode.com",
+];
+
+async function fetchBalanceClientSide(wallet: string): Promise<number> {
+  const addr = wallet.replace("0x", "").toLowerCase().padStart(64, "0");
+  const calldata = `0x70a08231${addr}`;
+  const payload = JSON.stringify({
+    jsonrpc: "2.0",
+    method: "eth_call",
+    params: [{ to: USDC_CONTRACT, data: calldata }, "latest"],
+    id: 1,
+  });
+
+  for (const rpc of RPCS) {
+    try {
+      const res = await fetch(rpc, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      });
+      if (!res.ok) continue;
+      const json = await res.json();
+      const hex = json?.result;
+      if (typeof hex === "string" && hex.length > 2) {
+        const val = parseInt(hex, 16) / 1e6;
+        if (val >= 0) return val;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return 0;
+}
+
 // Simple SVG line chart for portfolio value over time
 function PortfolioChart({
   history,
@@ -134,6 +174,7 @@ export default function Dashboard() {
   const [lastUpdated, setLastUpdated] = useState("");
   const [tick, setTick] = useState(0);
   const [history, setHistory] = useState<{ time: string; value: number }[]>([]);
+  const [cashBalance, setCashBalance] = useState<number>(0);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -152,18 +193,27 @@ export default function Dashboard() {
       setLastUpdated(json.lastUpdated);
       setError("");
 
+      // Fetch USDC balance client-side (browser can reach RPCs that Vercel can't)
+      if (json.walletAddress) {
+        const bal = await fetchBalanceClientSide(json.walletAddress);
+        setCashBalance(bal);
+      }
+
+      // Portfolio = cash (from browser RPC) + positions (from API)
+      const portfolioTotal = (cashBalance || 0) + json.positionValue;
+
       // Add to history for chart (keep last 100 points = ~33 minutes)
       setHistory((prev) => {
         const next = [
           ...prev,
-          { time: json.lastUpdated, value: json.portfolioValue },
+          { time: json.lastUpdated, value: portfolioTotal > 0 ? portfolioTotal : json.portfolioValue },
         ];
         return next.slice(-100);
       });
     } catch {
       setError("Connection error");
     }
-  }, [router]);
+  }, [router, cashBalance]);
 
   useEffect(() => {
     fetchData();
@@ -221,16 +271,26 @@ export default function Dashboard() {
       {data && (
         <>
           {/* Summary Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
             <Card
-              label="Portfolio Value"
-              value={formatUsd(data.portfolioValue)}
+              label="Portfolio"
+              value={formatUsd(cashBalance + data.positionValue)}
+            />
+            <Card
+              label="Cash"
+              value={formatUsd(cashBalance)}
+            />
+            <Card
+              label="Positions"
+              value={formatUsd(data.positionValue)}
             />
             <Card
               label="Total P&L"
               value={formatPnl(data.totalPnl)}
               valueClass={pnlColor(data.totalPnl)}
             />
+          </div>
+          <div className="grid grid-cols-3 gap-4 mb-8">
             <Card
               label="Win / Loss"
               value={`${data.winCount}W / ${data.lossCount}L`}
@@ -244,7 +304,7 @@ export default function Dashboard() {
               }
             />
             <Card
-              label="Positions"
+              label="Open Positions"
               value={data.totalPositions.toString()}
             />
           </div>

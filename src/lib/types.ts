@@ -34,6 +34,7 @@ export interface Trade {
 export interface DashboardData {
   usdcBalance: number;
   portfolioValue: number;
+  positionValue: number;
   totalPnl: number;
   winRate: number;
   winCount: number;
@@ -42,4 +43,5 @@ export interface DashboardData {
   positions: Position[];
   trades: Trade[];
   lastUpdated: string;
+  walletAddress: string;
 }
