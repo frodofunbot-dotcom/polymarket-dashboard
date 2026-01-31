@@ -20,7 +20,6 @@ export async function fetchUsdcBalance(wallet: string): Promise<number> {
         headers: { "Content-Type": "application/json" },
         body: payload,
         cache: "no-store",
-        signal: AbortSignal.timeout(5000),
       });
 
       const json = await res.json();

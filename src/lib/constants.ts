@@ -5,6 +5,7 @@ export function getWalletAddress(): string {
 export const DATA_API = "https://data-api.polymarket.com";
 // Multiple RPC endpoints for reliability
 export const POLYGON_RPCS = [
+  "https://rpc.ankr.com/polygon",
   "https://polygon-bor-rpc.publicnode.com",
   "https://polygon.llamarpc.com",
   "https://polygon-rpc.com",
