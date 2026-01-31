@@ -1,9 +1,9 @@
 import { USDC_CONTRACT } from "./constants";
 
 const RPCS = [
+  "https://polygon-mainnet.g.alchemy.com/v2/demo",
   "https://polygon-rpc.com",
   "https://1rpc.io/matic",
-  "https://polygon.meowrpc.com",
 ];
 
 export async function fetchUsdcBalance(wallet: string): Promise<number> {
