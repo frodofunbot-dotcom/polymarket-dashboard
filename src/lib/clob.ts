@@ -27,8 +27,11 @@ async function buildHmacSignature(
     new TextEncoder().encode(message)
   );
 
-  // Base64url-encode the signature (matching py_clob_client's urlsafe_b64encode)
-  return Buffer.from(new Uint8Array(sig)).toString("base64url");
+  // Base64url-encode WITH padding (matching py_clob_client's urlsafe_b64encode)
+  return Buffer.from(new Uint8Array(sig))
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_");
 }
 
 /**
