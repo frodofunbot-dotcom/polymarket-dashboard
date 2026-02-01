@@ -25,8 +25,7 @@ export async function GET() {
   const todaySec = Math.floor(todayStart.getTime() / 1000);
   const todayTrades = trades.filter((t) => t.timestamp >= todaySec);
 
-  // Open positions only
-  const now = new Date();
+  // Live positions only (not expired)
   const openPositions = positions.filter(
     (p) =>
       !p.redeemable &&
