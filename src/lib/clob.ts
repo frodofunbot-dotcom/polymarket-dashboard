@@ -9,9 +9,8 @@ async function buildHmacSignature(
 ): Promise<string> {
   const message = timestamp + method + requestPath + body;
 
-  // Decode base64 secret to raw bytes (handle base64url encoding)
-  const b64 = secret.replace(/-/g, "+").replace(/_/g, "/");
-  const keyBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  // Decode base64url secret to raw bytes using Buffer (reliable on Node.js/Vercel)
+  const keyBytes = new Uint8Array(Buffer.from(secret, "base64url"));
 
   // Use Web Crypto API (works on both Vercel and Node.js)
   const key = await globalThis.crypto.subtle.importKey(
@@ -29,12 +28,7 @@ async function buildHmacSignature(
   );
 
   // Base64url-encode the signature (matching py_clob_client's urlsafe_b64encode)
-  const bytes = new Uint8Array(sig);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_");
+  return Buffer.from(new Uint8Array(sig)).toString("base64url");
 }
 
 /**
