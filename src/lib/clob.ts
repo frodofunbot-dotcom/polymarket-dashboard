@@ -9,8 +9,9 @@ async function buildHmacSignature(
 ): Promise<string> {
   const message = timestamp + method + requestPath + body;
 
-  // Decode base64 secret to raw bytes
-  const keyBytes = Uint8Array.from(atob(secret), (c) => c.charCodeAt(0));
+  // Decode base64 secret to raw bytes (handle base64url encoding)
+  const b64 = secret.replace(/-/g, "+").replace(/_/g, "/");
+  const keyBytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
 
   // Use Web Crypto API (works on both Vercel and Node.js)
   const key = await globalThis.crypto.subtle.importKey(
@@ -27,48 +28,50 @@ async function buildHmacSignature(
     new TextEncoder().encode(message)
   );
 
-  // Base64-encode the signature
+  // Base64url-encode the signature (matching py_clob_client's urlsafe_b64encode)
   const bytes = new Uint8Array(sig);
   let binary = "";
   for (let i = 0; i < bytes.length; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
-  return btoa(binary);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_");
 }
 
 /**
  * Fetch the CLOB collateral balance (actual Polymarket cash balance).
- * Requires POLY_API_KEY, POLY_API_SECRET, POLY_API_PASSPHRASE env vars.
+ * Requires POLY_API_KEY, POLY_API_SECRET, POLY_API_PASSPHRASE, POLY_SIGNER_ADDRESS env vars.
  */
-export async function fetchClobBalance(walletAddress: string): Promise<number> {
+export async function fetchClobBalance(): Promise<number> {
   const apiKey = process.env.POLY_API_KEY;
   const apiSecret = process.env.POLY_API_SECRET;
   const apiPassphrase = process.env.POLY_API_PASSPHRASE;
+  const signerAddress = process.env.POLY_SIGNER_ADDRESS;
 
-  if (!apiKey || !apiSecret || !apiPassphrase) {
+  if (!apiKey || !apiSecret || !apiPassphrase || !signerAddress) {
     console.error("Missing POLY_API_* env vars for CLOB balance");
     return 0;
   }
 
   const timestamp = Math.floor(Date.now() / 1000).toString();
-  const nonce = Math.floor(Math.random() * 1000000).toString();
   const method = "GET";
-  const path = "/balance-allowance?asset_type=COLLATERAL";
+  // Sign only the path WITHOUT query params (matching py_clob_client)
+  const signingPath = "/balance-allowance";
+  // signature_type=2 tells CLOB to return the Gnosis Safe proxy balance
+  const requestUrl = "/balance-allowance?asset_type=COLLATERAL&signature_type=2";
 
   try {
     const signature = await buildHmacSignature(
       apiSecret,
       timestamp,
       method,
-      path
+      signingPath
     );
 
-    const res = await fetch(`${CLOB_HOST}${path}`, {
+    const res = await fetch(`${CLOB_HOST}${requestUrl}`, {
       headers: {
-        POLY_ADDRESS: walletAddress,
+        POLY_ADDRESS: signerAddress,
         POLY_SIGNATURE: signature,
         POLY_TIMESTAMP: timestamp,
-        POLY_NONCE: nonce,
         POLY_API_KEY: apiKey,
         POLY_PASSPHRASE: apiPassphrase,
       },

@@ -11,7 +11,7 @@ export async function GET() {
   const [positions, trades, cashBalance] = await Promise.all([
     fetchPositions(wallet),
     fetchTrades(wallet, 200),
-    fetchClobBalance(wallet),
+    fetchClobBalance(),
   ]);
 
   // Today's P&L from activity history
