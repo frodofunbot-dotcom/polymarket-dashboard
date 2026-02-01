@@ -143,8 +143,9 @@ export default function Dashboard() {
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-5 gap-3 mb-6">
+          <div className="grid grid-cols-6 gap-3 mb-6">
             <Card label="Portfolio" value={formatUsd(data.portfolioValue)} />
+            <Card label="Positions" value={formatUsd(data.positionValue)} />
             <Card label="Cash" value={formatUsd(data.balance)} />
             <Card
               label="Wins"
