@@ -102,7 +102,7 @@ export default function Dashboard() {
     <div className="min-h-screen p-4 md:p-8 max-w-2xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">P&L Tracker</h1>
+        <h1 className="text-xl font-bold text-white">Polymarket Dashboard</h1>
         <div className="flex items-center gap-4">
           {lastUpdated && (
             <span className="text-xs text-zinc-500">
@@ -129,21 +129,22 @@ export default function Dashboard() {
           {/* Big P&L Hero */}
           <div
             className={`rounded-xl border p-6 mb-6 text-center ${pnlBg(
-              data.todayPnl
+              data.allTimePnl
             )}`}
           >
             <p className="text-sm text-zinc-400 uppercase tracking-wider mb-2">
-              Today&apos;s P&amp;L
+              All-Time P&amp;L
             </p>
             <p
-              className={`text-4xl font-bold ${pnlColor(data.todayPnl)}`}
+              className={`text-4xl font-bold ${pnlColor(data.allTimePnl)}`}
             >
-              {formatPnl(data.todayPnl)}
+              {formatPnl(data.allTimePnl)}
             </p>
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-6 gap-3 mb-6">
+          <div className="grid grid-cols-7 gap-3 mb-6">
+            <Card label="Today" value={formatPnl(data.todayPnl)} valueClass={pnlColor(data.todayPnl)} />
             <Card label="Portfolio" value={formatUsd(data.portfolioValue)} />
             <Card label="Positions" value={formatUsd(data.positionValue)} />
             <Card label="Cash" value={formatUsd(data.balance)} />

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { fetchPositions, fetchTrades, fetchTodayPnl } from "@/lib/polymarket";
+import { fetchPositions, fetchTrades, fetchPnl } from "@/lib/polymarket";
 import { fetchClobBalance } from "@/lib/clob";
 import { getWalletAddress } from "@/lib/constants";
 import type { DashboardData } from "@/lib/types";
@@ -13,9 +13,6 @@ export async function GET() {
     fetchTrades(wallet, 200),
     fetchClobBalance(),
   ]);
-
-  // Today's P&L from activity history
-  const today = await fetchTodayPnl(wallet, positions);
 
   // Filter trades to today (UTC midnight)
   const now = new Date();
@@ -34,18 +31,20 @@ export async function GET() {
   );
 
   const positionValue = openPositions.reduce((s, p) => s + p.currentValue, 0);
-  const decided = today.wins + today.losses;
+
+  // P&L from activity history
+  const pnl = await fetchPnl(wallet, positionValue);
+  const decided = pnl.todayWins + pnl.todayLosses;
 
   const data: DashboardData = {
     balance: cashBalance,
     positionValue,
     portfolioValue: cashBalance + positionValue,
-    todayPnl: today.pnl,
-    todayWins: today.wins,
-    todayLosses: today.losses,
-    todayWinRate: decided > 0 ? (today.wins / decided) * 100 : 0,
-    todaySpent: today.spent,
-    todayRevenue: today.revenue,
+    allTimePnl: pnl.allTimePnl,
+    todayPnl: pnl.todayPnl,
+    todayWins: pnl.todayWins,
+    todayLosses: pnl.todayLosses,
+    todayWinRate: decided > 0 ? (pnl.todayWins / decided) * 100 : 0,
     openPositions: openPositions.sort((a, b) => b.currentValue - a.currentValue),
     todayTrades: todayTrades.sort((a, b) => b.timestamp - a.timestamp),
     lastUpdated: new Date().toISOString(),

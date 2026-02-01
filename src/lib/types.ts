@@ -35,12 +35,11 @@ export interface DashboardData {
   balance: number;
   positionValue: number;
   portfolioValue: number;
+  allTimePnl: number;
   todayPnl: number;
   todayWins: number;
   todayLosses: number;
   todayWinRate: number;
-  todaySpent: number;
-  todayRevenue: number;
   openPositions: Position[];
   todayTrades: Trade[];
   lastUpdated: string;

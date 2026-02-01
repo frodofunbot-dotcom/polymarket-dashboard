@@ -69,26 +69,25 @@ export async function fetchTrades(
 }
 
 /**
- * Calculate today's P&L from activity (trades + redemptions).
- * Filters all activity to UTC today, groups by conditionId,
- * and combines with open position unrealized P&L.
+ * Fetch all activity and calculate P&L.
+ * All-time P&L = total sold + total redeemed - total bought + current position value
+ * Today P&L = same formula but filtered to today's activity only
  */
-export async function fetchTodayPnl(
+export async function fetchPnl(
   wallet: string,
-  positions: Position[]
+  positionValue: number
 ): Promise<{
-  pnl: number;
-  wins: number;
-  losses: number;
-  spent: number;
-  revenue: number;
+  allTimePnl: number;
+  todayPnl: number;
+  todayWins: number;
+  todayLosses: number;
 }> {
   const res = await fetch(
     `${DATA_API}/activity?user=${wallet}&limit=1000`,
     { cache: "no-store" }
   );
 
-  if (!res.ok) return { pnl: 0, wins: 0, losses: 0, spent: 0, revenue: 0 };
+  if (!res.ok) return { allTimePnl: 0, todayPnl: 0, todayWins: 0, todayLosses: 0 };
 
   const activities: any[] = await res.json();
 
@@ -99,77 +98,69 @@ export async function fetchTodayPnl(
   );
   const cutoffMs = todayStart.getTime();
 
-  const todayActs = activities.filter((a) => {
-    const ms =
-      typeof a.timestamp === "string"
-        ? new Date(a.timestamp).getTime()
-        : parseInt(a.timestamp || "0", 10) * 1000;
-    return ms >= cutoffMs;
-  });
+  let allBought = 0;
+  let allSold = 0;
+  let allRedeemed = 0;
+  let todayBought = 0;
+  let todaySold = 0;
+  let todayRedeemed = 0;
 
-  // Group by conditionId
-  const byCondition = new Map<
+  // Track today's markets for win/loss counting
+  const todayByCondition = new Map<
     string,
     { bought: number; sold: number; redeemed: number }
   >();
 
-  for (const a of todayActs) {
-    const cid = a.conditionId || "unknown";
-    if (!byCondition.has(cid)) {
-      byCondition.set(cid, { bought: 0, sold: 0, redeemed: 0 });
-    }
-    const c = byCondition.get(cid)!;
+  for (const a of activities) {
     const usdc = parseFloat(a.usdcSize || "0");
+    const ms =
+      typeof a.timestamp === "string"
+        ? new Date(a.timestamp).getTime()
+        : parseInt(a.timestamp || "0", 10) * 1000;
+    const isToday = ms >= cutoffMs;
 
     if (a.type === "TRADE") {
-      if (a.side === "BUY") c.bought += usdc;
-      else c.sold += usdc;
+      if (a.side === "BUY") {
+        allBought += usdc;
+        if (isToday) todayBought += usdc;
+      } else {
+        allSold += usdc;
+        if (isToday) todaySold += usdc;
+      }
     } else if (a.type === "REDEEM") {
-      c.redeemed += usdc;
+      allRedeemed += usdc;
+      if (isToday) todayRedeemed += usdc;
+    }
+
+    if (isToday) {
+      const cid = a.conditionId || "unknown";
+      if (!todayByCondition.has(cid)) {
+        todayByCondition.set(cid, { bought: 0, sold: 0, redeemed: 0 });
+      }
+      const c = todayByCondition.get(cid)!;
+      if (a.type === "TRADE") {
+        if (a.side === "BUY") c.bought += usdc;
+        else c.sold += usdc;
+      } else if (a.type === "REDEEM") {
+        c.redeemed += usdc;
+      }
     }
   }
 
-  let spent = 0;
-  let revenue = 0;
-  let wins = 0;
-  let losses = 0;
+  // All-time: realized + current position value
+  const allTimePnl = allSold + allRedeemed - allBought + positionValue;
 
-  byCondition.forEach((c, cid) => {
-    spent += c.bought;
-    revenue += c.sold + c.redeemed;
+  // Today: just realized (sold + redeemed - bought today)
+  const todayPnl = todaySold + todayRedeemed - todayBought;
 
-    // Determine if this market is closed (has revenue and no open position)
-    const openPos = positions.find(
-      (p) =>
-        (p.conditionId === cid || p.asset === cid) &&
-        !p.redeemable &&
-        p.curPrice > 0 &&
-        p.curPrice < 1 &&
-        p.size > 0
-    );
-
-    if (!openPos && c.bought > 0) {
-      const net = c.sold + c.redeemed - c.bought;
-      if (net > 0.005) wins++;
-      else if (net < -0.005) losses++;
-    }
+  // Count today's wins/losses per market
+  let todayWins = 0;
+  let todayLosses = 0;
+  todayByCondition.forEach((c) => {
+    const net = c.sold + c.redeemed - c.bought;
+    if (net > 0.005) todayWins++;
+    else if (net < -0.005) todayLosses++;
   });
 
-  // Add unrealized P&L from open positions that were traded today
-  let unrealized = 0;
-  positions.forEach((pos) => {
-    const cid = pos.conditionId || pos.asset;
-    if (
-      byCondition.has(cid) &&
-      !pos.redeemable &&
-      pos.curPrice > 0 &&
-      pos.curPrice < 1
-    ) {
-      unrealized += pos.cashPnl;
-    }
-  });
-
-  const pnl = revenue - spent + unrealized;
-
-  return { pnl, wins, losses, spent, revenue };
+  return { allTimePnl, todayPnl, todayWins, todayLosses };
 }
