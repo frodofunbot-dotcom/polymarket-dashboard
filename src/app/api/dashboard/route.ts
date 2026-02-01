@@ -27,7 +27,7 @@ export async function GET() {
     (p) =>
       !p.redeemable &&
       p.size > 0 &&
-      (!p.endDate || new Date(p.endDate) > now)
+      (!p.endDate || new Date(p.endDate + "T23:59:59Z") > now)
   );
 
   const positionValue = openPositions.reduce((s, p) => s + p.currentValue, 0);
