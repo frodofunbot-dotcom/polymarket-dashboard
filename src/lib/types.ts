@@ -31,32 +31,16 @@ export interface Trade {
   slug: string;
 }
 
-export interface ArbStats {
-  totalSets: number;
-  totalSpent: number;
-  totalLegs: number;
-  sets: ArbSet[];
-}
-
-export interface ArbSet {
-  timestamp: number;
-  legs: number;
-  totalCost: number;
-  outcomes: string[];
-}
-
 export interface DashboardData {
-  usdcBalance: number;
-  portfolioValue: number;
-  positionValue: number;
-  totalPnl: number;
-  winRate: number;
-  winCount: number;
-  lossCount: number;
-  totalPositions: number;
-  positions: Position[];
-  trades: Trade[];
-  arbStats: ArbStats;
+  balance: number;
+  todayPnl: number;
+  todayWins: number;
+  todayLosses: number;
+  todayWinRate: number;
+  todaySpent: number;
+  todayRevenue: number;
+  openPositions: Position[];
+  todayTrades: Trade[];
   lastUpdated: string;
   walletAddress: string;
 }

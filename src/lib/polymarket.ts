@@ -1,4 +1,4 @@
-import { Position, Trade, ArbStats, ArbSet } from "./types";
+import { Position, Trade } from "./types";
 import { DATA_API } from "./constants";
 
 export async function fetchPositions(wallet: string): Promise<Position[]> {
@@ -69,83 +69,107 @@ export async function fetchTrades(
 }
 
 /**
- * Detect arb trade sets from trade history.
- * An arb set = cluster of 3+ BUY trades on different conditionIds within 120 seconds.
+ * Calculate today's P&L from activity (trades + redemptions).
+ * Filters all activity to UTC today, groups by conditionId,
+ * and combines with open position unrealized P&L.
  */
-export function detectArbSets(trades: Trade[]): ArbStats {
-  const buys = trades
-    .filter((t) => t.side === "BUY")
-    .sort((a, b) => a.timestamp - b.timestamp);
-
-  const sets: ArbSet[] = [];
-  let i = 0;
-
-  while (i < buys.length) {
-    // Collect all BUYs within 120s of this one
-    const cluster: Trade[] = [buys[i]];
-    let j = i + 1;
-    while (j < buys.length && buys[j].timestamp - buys[i].timestamp <= 120) {
-      // Only group if different conditionId (different outcome)
-      if (!cluster.some((c) => c.conditionId === buys[j].conditionId)) {
-        cluster.push(buys[j]);
-      }
-      j++;
-    }
-
-    if (cluster.length >= 3) {
-      sets.push({
-        timestamp: cluster[0].timestamp,
-        legs: cluster.length,
-        totalCost: cluster.reduce((s, t) => s + t.usdcSize, 0),
-        outcomes: cluster.map((t) => t.outcome || t.title),
-      });
-      i = j; // skip past this cluster
-    } else {
-      i++;
-    }
-  }
-
-  return {
-    totalSets: sets.length,
-    totalSpent: sets.reduce((s, a) => s + a.totalCost, 0),
-    totalLegs: sets.reduce((s, a) => s + a.legs, 0),
-    sets,
-  };
-}
-
-/**
- * Calculate true P&L from full activity history (trades + redemptions).
- * This avoids the issue where redeemed winning positions disappear from
- * the positions API, making the P&L look worse than it actually is.
- */
-export async function fetchTruePnl(
+export async function fetchTodayPnl(
   wallet: string,
   positions: Position[]
-): Promise<number> {
+): Promise<{
+  pnl: number;
+  wins: number;
+  losses: number;
+  spent: number;
+  revenue: number;
+}> {
   const res = await fetch(
     `${DATA_API}/activity?user=${wallet}&limit=1000`,
     { cache: "no-store" }
   );
 
-  if (!res.ok) return 0;
+  if (!res.ok) return { pnl: 0, wins: 0, losses: 0, spent: 0, revenue: 0 };
 
   const activities: any[] = await res.json();
 
-  let totalBought = 0;
-  let totalSold = 0;
-  let totalRedeemed = 0;
+  // UTC midnight today
+  const now = new Date();
+  const todayStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  const cutoffMs = todayStart.getTime();
 
-  for (const a of activities) {
+  const todayActs = activities.filter((a) => {
+    const ms =
+      typeof a.timestamp === "string"
+        ? new Date(a.timestamp).getTime()
+        : parseInt(a.timestamp || "0", 10) * 1000;
+    return ms >= cutoffMs;
+  });
+
+  // Group by conditionId
+  const byCondition = new Map<
+    string,
+    { bought: number; sold: number; redeemed: number }
+  >();
+
+  for (const a of todayActs) {
+    const cid = a.conditionId || "unknown";
+    if (!byCondition.has(cid)) {
+      byCondition.set(cid, { bought: 0, sold: 0, redeemed: 0 });
+    }
+    const c = byCondition.get(cid)!;
     const usdc = parseFloat(a.usdcSize || "0");
+
     if (a.type === "TRADE") {
-      if (a.side === "BUY") totalBought += usdc;
-      else totalSold += usdc;
+      if (a.side === "BUY") c.bought += usdc;
+      else c.sold += usdc;
     } else if (a.type === "REDEEM") {
-      totalRedeemed += usdc;
+      c.redeemed += usdc;
     }
   }
 
-  const positionValue = positions.reduce((sum, p) => sum + p.currentValue, 0);
+  let spent = 0;
+  let revenue = 0;
+  let wins = 0;
+  let losses = 0;
 
-  return totalSold + totalRedeemed + positionValue - totalBought;
+  byCondition.forEach((c, cid) => {
+    spent += c.bought;
+    revenue += c.sold + c.redeemed;
+
+    // Determine if this market is closed (has revenue and no open position)
+    const openPos = positions.find(
+      (p) =>
+        (p.conditionId === cid || p.asset === cid) &&
+        !p.redeemable &&
+        p.curPrice > 0 &&
+        p.curPrice < 1 &&
+        p.size > 0
+    );
+
+    if (!openPos && c.bought > 0) {
+      const net = c.sold + c.redeemed - c.bought;
+      if (net > 0.005) wins++;
+      else if (net < -0.005) losses++;
+    }
+  });
+
+  // Add unrealized P&L from open positions that were traded today
+  let unrealized = 0;
+  positions.forEach((pos) => {
+    const cid = pos.conditionId || pos.asset;
+    if (
+      byCondition.has(cid) &&
+      !pos.redeemable &&
+      pos.curPrice > 0 &&
+      pos.curPrice < 1
+    ) {
+      unrealized += pos.cashPnl;
+    }
+  });
+
+  const pnl = revenue - spent + unrealized;
+
+  return { pnl, wins, losses, spent, revenue };
 }
