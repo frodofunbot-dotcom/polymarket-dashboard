@@ -126,25 +126,40 @@ export default function Dashboard() {
 
       {data && (
         <>
-          {/* Big P&L Hero */}
-          <div
-            className={`rounded-xl border p-6 mb-6 text-center ${pnlBg(
-              data.allTimePnl
-            )}`}
-          >
-            <p className="text-sm text-zinc-400 uppercase tracking-wider mb-2">
-              All-Time P&amp;L
-            </p>
-            <p
-              className={`text-4xl font-bold ${pnlColor(data.allTimePnl)}`}
+          {/* P&L Hero Row */}
+          <div className="grid grid-cols-2 gap-3 mb-6">
+            <div
+              className={`rounded-xl border p-6 text-center ${pnlBg(
+                data.allTimePnl
+              )}`}
             >
-              {formatPnl(data.allTimePnl)}
-            </p>
+              <p className="text-sm text-zinc-400 uppercase tracking-wider mb-2">
+                All-Time P&amp;L
+              </p>
+              <p
+                className={`text-4xl font-bold ${pnlColor(data.allTimePnl)}`}
+              >
+                {formatPnl(data.allTimePnl)}
+              </p>
+            </div>
+            <div
+              className={`rounded-xl border p-6 text-center ${pnlBg(
+                data.todayPnl
+              )}`}
+            >
+              <p className="text-sm text-zinc-400 uppercase tracking-wider mb-2">
+                Today&apos;s P&amp;L
+              </p>
+              <p
+                className={`text-4xl font-bold ${pnlColor(data.todayPnl)}`}
+              >
+                {formatPnl(data.todayPnl)}
+              </p>
+            </div>
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-7 gap-3 mb-6">
-            <Card label="Today" value={formatPnl(data.todayPnl)} valueClass={pnlColor(data.todayPnl)} />
+          <div className="grid grid-cols-6 gap-3 mb-6">
             <Card label="Portfolio" value={formatUsd(data.portfolioValue)} />
             <Card label="Positions" value={formatUsd(data.positionValue)} />
             <Card label="Cash" value={formatUsd(data.balance)} />
