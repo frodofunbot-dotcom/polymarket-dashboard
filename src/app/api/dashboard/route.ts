@@ -26,8 +26,12 @@ export async function GET() {
   const todayTrades = trades.filter((t) => t.timestamp >= todaySec);
 
   // Open positions only
+  const now = new Date();
   const openPositions = positions.filter(
-    (p) => !p.redeemable && p.curPrice > 0 && p.curPrice < 1 && p.size > 0
+    (p) =>
+      !p.redeemable &&
+      p.size > 0 &&
+      (!p.endDate || new Date(p.endDate) > now)
   );
 
   const positionValue = openPositions.reduce((s, p) => s + p.currentValue, 0);

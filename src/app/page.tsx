@@ -177,7 +177,7 @@ export default function Dashboard() {
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg mb-6">
             <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
               <h2 className="text-base font-semibold text-white">
-                Open Positions
+                Live Positions
               </h2>
               <span className="text-sm text-zinc-500">
                 {data.openPositions.length}
@@ -185,7 +185,7 @@ export default function Dashboard() {
             </div>
             {data.openPositions.length === 0 ? (
               <div className="px-4 py-6 text-center text-zinc-600 text-sm">
-                No open positions
+                No live positions
               </div>
             ) : (
               <div className="divide-y divide-zinc-800/50">
