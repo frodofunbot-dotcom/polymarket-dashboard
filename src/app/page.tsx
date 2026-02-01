@@ -127,7 +127,7 @@ export default function Dashboard() {
       {data && (
         <>
           {/* P&L Hero Row */}
-          <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
             <div
               className={`rounded-xl border p-6 text-center ${pnlBg(
                 data.allTimePnl
@@ -159,7 +159,7 @@ export default function Dashboard() {
           </div>
 
           {/* Stats Row */}
-          <div className="grid grid-cols-6 gap-3 mb-6">
+          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
             <Card label="Portfolio" value={formatUsd(data.portfolioValue)} />
             <Card label="Positions" value={formatUsd(data.positionValue)} />
             <Card label="Cash" value={formatUsd(data.balance)} />
