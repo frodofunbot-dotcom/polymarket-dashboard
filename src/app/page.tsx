@@ -191,8 +191,9 @@ export default function Dashboard() {
           </div>
 
           {/* Stats Row 1 */}
-          <div className="grid grid-cols-3 gap-3 mb-3">
-            <Card label="Balance" value={formatUsd(totalBalance)} />
+          <div className="grid grid-cols-4 gap-3 mb-3">
+            <Card label="Portfolio" value={formatUsd(totalBalance)} />
+            <Card label="Cash" value={formatUsd(cashBalance)} />
             <Card
               label="Wins"
               value={data.todayWins.toString()}
