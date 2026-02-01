@@ -46,51 +46,11 @@ function formatTradeTime(ts: number): string {
   });
 }
 
-// Fetch USDC balance client-side (browser -> Polygon RPC).
-const USDC_CONTRACT = "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174";
-const RPCS = [
-  "https://polygon-rpc.com",
-  "https://1rpc.io/matic",
-  "https://polygon-bor-rpc.publicnode.com",
-];
-
-async function fetchBalanceClientSide(wallet: string): Promise<number> {
-  const addr = wallet.replace("0x", "").toLowerCase().padStart(64, "0");
-  const calldata = `0x70a08231${addr}`;
-  const payload = JSON.stringify({
-    jsonrpc: "2.0",
-    method: "eth_call",
-    params: [{ to: USDC_CONTRACT, data: calldata }, "latest"],
-    id: 1,
-  });
-
-  for (const rpc of RPCS) {
-    try {
-      const res = await fetch(rpc, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-      });
-      if (!res.ok) continue;
-      const json = await res.json();
-      const hex = json?.result;
-      if (typeof hex === "string" && hex.length > 2) {
-        const val = parseInt(hex, 16) / 1e6;
-        if (val >= 0) return val;
-      }
-    } catch {
-      continue;
-    }
-  }
-  return 0;
-}
-
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [error, setError] = useState("");
   const [lastUpdated, setLastUpdated] = useState("");
   const [, setTick] = useState(0);
-  const [cashBalance, setCashBalance] = useState<number>(0);
   const router = useRouter();
 
   const fetchData = useCallback(async () => {
@@ -108,11 +68,6 @@ export default function Dashboard() {
       setData(json);
       setLastUpdated(json.lastUpdated);
       setError("");
-
-      if (json.walletAddress) {
-        const bal = await fetchBalanceClientSide(json.walletAddress);
-        setCashBalance(bal);
-      }
     } catch {
       setError("Connection error");
     }
@@ -124,7 +79,6 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, [fetchData]);
 
-  // Tick for "updated X ago" display
   useEffect(() => {
     const t = setInterval(() => setTick((n) => n + 1), 1000);
     return () => clearInterval(t);
@@ -143,8 +97,6 @@ export default function Dashboard() {
       </div>
     );
   }
-
-  const totalBalance = cashBalance + (data?.openPositions.reduce((s, p) => s + p.currentValue, 0) || 0);
 
   return (
     <div className="min-h-screen p-4 md:p-8 max-w-2xl mx-auto">
@@ -192,8 +144,8 @@ export default function Dashboard() {
 
           {/* Stats Row 1 */}
           <div className="grid grid-cols-4 gap-3 mb-3">
-            <Card label="Portfolio" value={formatUsd(totalBalance)} />
-            <Card label="Cash" value={formatUsd(cashBalance)} />
+            <Card label="Portfolio" value={formatUsd(data.portfolioValue)} />
+            <Card label="Cash" value={formatUsd(data.balance)} />
             <Card
               label="Wins"
               value={data.todayWins.toString()}
@@ -228,16 +180,20 @@ export default function Dashboard() {
           </div>
 
           {/* Open Positions */}
-          {data.openPositions.length > 0 && (
-            <div className="bg-zinc-900 border border-zinc-800 rounded-lg mb-6">
-              <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-white">
-                  Open Positions
-                </h2>
-                <span className="text-sm text-zinc-500">
-                  {data.openPositions.length}
-                </span>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg mb-6">
+            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
+              <h2 className="text-base font-semibold text-white">
+                Open Positions
+              </h2>
+              <span className="text-sm text-zinc-500">
+                {data.openPositions.length}
+              </span>
+            </div>
+            {data.openPositions.length === 0 ? (
+              <div className="px-4 py-6 text-center text-zinc-600 text-sm">
+                No open positions
               </div>
+            ) : (
               <div className="divide-y divide-zinc-800/50">
                 {data.openPositions.map((p, i) => (
                   <div
@@ -264,8 +220,8 @@ export default function Dashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Today's Trades */}
           <div className="bg-zinc-900 border border-zinc-800 rounded-lg">
@@ -279,7 +235,7 @@ export default function Dashboard() {
             </div>
             <div className="divide-y divide-zinc-800/50">
               {data.todayTrades.length === 0 ? (
-                <div className="px-4 py-8 text-center text-zinc-600 text-sm">
+                <div className="px-4 py-6 text-center text-zinc-600 text-sm">
                   No trades yet today
                 </div>
               ) : (

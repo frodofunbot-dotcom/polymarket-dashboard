@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { fetchPositions, fetchTrades, fetchTodayPnl } from "@/lib/polymarket";
-import { fetchUsdcBalance } from "@/lib/balance";
+import { fetchClobBalance } from "@/lib/clob";
 import { getWalletAddress } from "@/lib/constants";
 import type { DashboardData } from "@/lib/types";
 
@@ -8,10 +8,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   const wallet = getWalletAddress();
-  const [positions, trades, usdcBalance] = await Promise.all([
+  const [positions, trades, cashBalance] = await Promise.all([
     fetchPositions(wallet),
     fetchTrades(wallet, 200),
-    fetchUsdcBalance(wallet),
+    fetchClobBalance(wallet),
   ]);
 
   // Today's P&L from activity history
@@ -30,10 +30,13 @@ export async function GET() {
     (p) => !p.redeemable && p.curPrice > 0 && p.curPrice < 1 && p.size > 0
   );
 
+  const positionValue = openPositions.reduce((s, p) => s + p.currentValue, 0);
   const decided = today.wins + today.losses;
 
   const data: DashboardData = {
-    balance: usdcBalance,
+    balance: cashBalance,
+    positionValue,
+    portfolioValue: cashBalance + positionValue,
     todayPnl: today.pnl,
     todayWins: today.wins,
     todayLosses: today.losses,

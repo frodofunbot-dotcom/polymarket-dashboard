@@ -33,6 +33,8 @@ export interface Trade {
 
 export interface DashboardData {
   balance: number;
+  positionValue: number;
+  portfolioValue: number;
   todayPnl: number;
   todayWins: number;
   todayLosses: number;
