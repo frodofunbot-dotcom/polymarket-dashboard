@@ -142,8 +142,8 @@ export default function Dashboard() {
             </p>
           </div>
 
-          {/* Stats Row 1 */}
-          <div className="grid grid-cols-4 gap-3 mb-3">
+          {/* Stats Row */}
+          <div className="grid grid-cols-5 gap-3 mb-6">
             <Card label="Portfolio" value={formatUsd(data.portfolioValue)} />
             <Card label="Cash" value={formatUsd(data.balance)} />
             <Card
@@ -156,12 +156,6 @@ export default function Dashboard() {
               value={data.todayLosses.toString()}
               valueClass="text-red-400"
             />
-          </div>
-
-          {/* Stats Row 2 */}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <Card label="Spent" value={formatUsd(data.todaySpent)} />
-            <Card label="Revenue" value={formatUsd(data.todayRevenue)} />
             <Card
               label="Win Rate"
               value={
