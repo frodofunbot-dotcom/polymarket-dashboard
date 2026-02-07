@@ -1,326 +1,461 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import type { DashboardData } from "@/lib/types";
+import { useEffect, useState } from "react";
+import { SniperDashboardData } from "@/lib/types";
 
-function formatUsd(n: number): string {
-  return n.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+export default function SniperDashboard() {
+  const [data, setData] = useState<SniperDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-function formatPnl(n: number): string {
-  const prefix = n >= 0 ? "+" : "";
-  return prefix + formatUsd(n);
-}
-
-function pnlColor(n: number): string {
-  if (n > 0.005) return "text-green-400";
-  if (n < -0.005) return "text-red-400";
-  return "text-zinc-400";
-}
-
-function pnlBg(n: number): string {
-  if (n > 0.005) return "bg-green-500/10 border-green-500/20";
-  if (n < -0.005) return "bg-red-500/10 border-red-500/20";
-  return "bg-zinc-800/50 border-zinc-700/50";
-}
-
-function timeAgo(iso: string): string {
-  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 5) return "just now";
-  if (seconds < 60) return `${seconds}s ago`;
-  return `${Math.floor(seconds / 60)}m ago`;
-}
-
-function formatTradeTime(ts: number): string {
-  const d = new Date(ts * 1000);
-  return d.toLocaleString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
-  });
-}
-
-export default function Dashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState("");
-  const [lastUpdated, setLastUpdated] = useState("");
-  const [, setTick] = useState(0);
-  const router = useRouter();
-
-  const fetchData = useCallback(async () => {
+  const fetchData = async () => {
     try {
-      const res = await fetch("/api/dashboard");
-      if (res.status === 401 || res.redirected) {
-        router.push("/login");
-        return;
-      }
-      if (!res.ok) {
-        setError("Failed to fetch data");
-        return;
-      }
-      const json: DashboardData = await res.json();
+      const res = await fetch("/api/sniper", { cache: "no-store" });
+      if (!res.ok) throw new Error("Failed to fetch");
+      const json = await res.json();
       setData(json);
-      setLastUpdated(json.lastUpdated);
-      setError("");
-    } catch {
-      setError("Connection error");
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
-  }, [router]);
+  };
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 20000);
+    const interval = setInterval(fetchData, 10000); // Refresh every 10 seconds
     return () => clearInterval(interval);
-  }, [fetchData]);
-
-  useEffect(() => {
-    const t = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(t);
   }, []);
 
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  }
-
-  if (!data && !error) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-zinc-500">Loading...</p>
+        <div className="text-gray-400">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-500">Error: {error || "No data"}</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen p-4 md:p-8 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold text-white">Polymarket Dashboard</h1>
+    <div className="min-h-screen p-4 sm:p-6 lg:p-8">
+      {/* Status Bar */}
+      <div className="mb-6 flex items-center justify-between border-b border-gray-800 pb-4">
         <div className="flex items-center gap-4">
-          {lastUpdated && (
-            <span className="text-xs text-zinc-500">
-              {timeAgo(lastUpdated)}
+          <h1 className="text-2xl font-bold">SNIPER BOT</h1>
+          {data.isDryRun ? (
+            <span className="px-3 py-1 bg-yellow-900/30 text-yellow-400 text-sm font-mono border border-yellow-700 rounded">
+              DRY RUN
+            </span>
+          ) : (
+            <span className="px-3 py-1 bg-green-900/30 text-green-400 text-sm font-mono border border-green-700 rounded">
+              LIVE
             </span>
           )}
-          <button
-            onClick={handleLogout}
-            className="text-sm text-zinc-500 hover:text-white transition-colors"
-          >
-            Logout
-          </button>
+        </div>
+        <div className="flex items-center gap-6 text-sm text-gray-400">
+          {data.lastTradeTimestamp && (
+            <div>
+              Last trade: {new Date(data.lastTradeTimestamp).toLocaleString()}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+            <span>Auto-refresh 10s</span>
+          </div>
         </div>
       </div>
 
-      {error && (
-        <div className="bg-red-900/30 border border-red-800 rounded-lg p-4 mb-6">
-          <p className="text-red-400">{error}</p>
+      {/* Hero Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <StatCard
+          label="Total P&L"
+          value={`$${data.totalPnl.toFixed(2)}`}
+          valueColor={data.totalPnl >= 0 ? "text-green-400" : "text-red-400"}
+        />
+        <StatCard
+          label="Win Rate"
+          value={`${data.winRate.toFixed(1)}%`}
+          valueColor={data.winRate >= 50 ? "text-green-400" : "text-red-400"}
+        />
+        <StatCard
+          label="Total Trades"
+          value={data.totalTrades.toString()}
+          valueColor="text-white"
+        />
+        <StatCard
+          label="Balance"
+          value={`$${data.balance.toFixed(2)}`}
+          valueColor="text-blue-400"
+        />
+      </div>
+
+      {/* P&L Chart */}
+      {data.cumulativePnl.length > 0 && (
+        <div className="mb-6 border border-gray-800 rounded-lg p-6 bg-black/50">
+          <h2 className="text-lg font-bold mb-4">CUMULATIVE P&L</h2>
+          <PnLChart data={data.cumulativePnl} />
         </div>
       )}
 
-      {data && (
-        <>
-          {/* P&L Hero Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-            <div
-              className={`rounded-xl border p-6 text-center ${pnlBg(
-                data.allTimePnl
-              )}`}
-            >
-              <p className="text-sm text-zinc-400 uppercase tracking-wider mb-2">
-                All-Time P&amp;L
-              </p>
-              <p
-                className={`text-4xl font-bold ${pnlColor(data.allTimePnl)}`}
-              >
-                {formatPnl(data.allTimePnl)}
-              </p>
-            </div>
-            <div
-              className={`rounded-xl border p-6 text-center ${pnlBg(
-                data.todayPnl
-              )}`}
-            >
-              <p className="text-sm text-zinc-400 uppercase tracking-wider mb-2">
-                Today&apos;s P&amp;L
-              </p>
-              <p
-                className={`text-4xl font-bold ${pnlColor(data.todayPnl)}`}
-              >
-                {formatPnl(data.todayPnl)}
-              </p>
-            </div>
-          </div>
-
-          {/* Stats Row */}
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-6">
-            <Card label="Portfolio" value={formatUsd(data.portfolioValue)} />
-            <Card label="Positions" value={formatUsd(data.positionValue)} />
-            <Card label="Cash" value={formatUsd(data.balance)} />
-            <Card
-              label="Wins"
-              value={data.todayWins.toString()}
-              valueClass="text-green-400"
-            />
-            <Card
-              label="Losses"
-              value={data.todayLosses.toString()}
-              valueClass="text-red-400"
-            />
-            <Card
-              label="Win Rate"
-              value={
-                data.todayWins + data.todayLosses > 0
-                  ? `${data.todayWinRate.toFixed(0)}%`
-                  : "--"
-              }
-              valueClass={
-                data.todayWinRate >= 50
-                  ? "text-green-400"
-                  : data.todayWins + data.todayLosses > 0
-                  ? "text-red-400"
-                  : "text-zinc-400"
-              }
-            />
-          </div>
-
-          {/* Open Positions */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg mb-6">
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">
-                Live Positions
-              </h2>
-              <span className="text-sm text-zinc-500">
-                {data.openPositions.length}
-              </span>
-            </div>
-            {data.openPositions.length === 0 ? (
-              <div className="px-4 py-6 text-center text-zinc-600 text-sm">
-                No live positions
-              </div>
-            ) : (
-              <div className="divide-y divide-zinc-800/50">
-                {data.openPositions.map((p, i) => (
-                  <div
-                    key={`${p.asset}-${i}`}
-                    className="px-4 py-3 flex items-center justify-between"
-                  >
-                    <div className="min-w-0 flex-1 mr-3">
-                      <p className="text-sm text-white truncate">{p.title}</p>
-                      <p className="text-xs text-zinc-500">
-                        {p.outcome} &middot; {p.size.toFixed(2)} shares @
-                        ${p.avgPrice.toFixed(3)}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p
-                        className={`text-sm font-medium ${pnlColor(p.cashPnl)}`}
-                      >
-                        {formatPnl(p.cashPnl)}
-                      </p>
-                      <p className="text-xs text-zinc-500">
-                        now ${p.curPrice.toFixed(3)}
-                      </p>
-                    </div>
-                  </div>
+      {/* Performance Breakdown */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+        {/* By Coin */}
+        <div className="border border-gray-800 rounded-lg p-4 bg-black/50">
+          <h3 className="text-sm font-bold mb-3 text-gray-400">BY COIN</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 text-xs">
+                  <th className="pb-2">Coin</th>
+                  <th className="pb-2 text-right">Trades</th>
+                  <th className="pb-2 text-right">W/L</th>
+                  <th className="pb-2 text-right">WR%</th>
+                  <th className="pb-2 text-right">P&L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.coinStats.map((stat) => (
+                  <tr key={stat.coin} className="border-t border-gray-800">
+                    <td className="py-2 font-mono text-xs">{stat.coin}</td>
+                    <td className="py-2 text-right">{stat.trades}</td>
+                    <td className="py-2 text-right">
+                      <span className="text-green-400">{stat.wins}</span>/
+                      <span className="text-red-400">{stat.losses}</span>
+                    </td>
+                    <td className="py-2 text-right">
+                      {stat.winRate.toFixed(0)}%
+                    </td>
+                    <td
+                      className={`py-2 text-right font-mono ${
+                        stat.pnl >= 0 ? "text-green-400" : "text-red-400"
+                      }`}
+                    >
+                      ${stat.pnl.toFixed(2)}
+                    </td>
+                  </tr>
                 ))}
-              </div>
-            )}
+              </tbody>
+            </table>
           </div>
+        </div>
 
-          {/* Today's Trades */}
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg">
-            <div className="px-4 py-3 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-white">
-                Today&apos;s Trades
-              </h2>
-              <span className="text-sm text-zinc-500">
-                {data.todayTrades.length}
-              </span>
-            </div>
-            <div className="divide-y divide-zinc-800/50">
-              {data.todayTrades.length === 0 ? (
-                <div className="px-4 py-6 text-center text-zinc-600 text-sm">
-                  No trades yet today
-                </div>
-              ) : (
-                data.todayTrades.map((t, i) => (
-                  <div
-                    key={`${t.transactionHash}-${i}`}
-                    className="px-4 py-3 flex items-center justify-between"
+        {/* By Hour */}
+        <div className="border border-gray-800 rounded-lg p-4 bg-black/50">
+          <h3 className="text-sm font-bold mb-3 text-gray-400">BY HOUR (UTC)</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 text-xs">
+                  <th className="pb-2">Hour</th>
+                  <th className="pb-2 text-right">Trades</th>
+                  <th className="pb-2 text-right">W/L</th>
+                  <th className="pb-2 text-right">WR%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.hourStats.map((stat) => (
+                  <tr key={stat.hour} className="border-t border-gray-800">
+                    <td className="py-2 font-mono">
+                      {stat.hour.toString().padStart(2, "0")}:00
+                    </td>
+                    <td className="py-2 text-right">{stat.trades}</td>
+                    <td className="py-2 text-right">
+                      <span className="text-green-400">{stat.wins}</span>/
+                      <span className="text-red-400">{stat.losses}</span>
+                    </td>
+                    <td className="py-2 text-right">
+                      {stat.winRate.toFixed(0)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* By Price Band */}
+        <div className="border border-gray-800 rounded-lg p-4 bg-black/50">
+          <h3 className="text-sm font-bold mb-3 text-gray-400">BY PRICE BAND</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-gray-500 text-xs">
+                  <th className="pb-2">Band</th>
+                  <th className="pb-2 text-right">Trades</th>
+                  <th className="pb-2 text-right">W/L</th>
+                  <th className="pb-2 text-right">WR%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.priceBandStats.map((stat) => (
+                  <tr key={stat.band} className="border-t border-gray-800">
+                    <td className="py-2 font-mono text-xs">{stat.band}</td>
+                    <td className="py-2 text-right">{stat.trades}</td>
+                    <td className="py-2 text-right">
+                      <span className="text-green-400">{stat.wins}</span>/
+                      <span className="text-red-400">{stat.losses}</span>
+                    </td>
+                    <td className="py-2 text-right">
+                      {stat.winRate.toFixed(0)}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Trades */}
+      <div className="mb-6 border border-gray-800 rounded-lg p-4 bg-black/50">
+        <h2 className="text-lg font-bold mb-4">RECENT TRADES (Last 30)</h2>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-gray-500 text-xs">
+                <th className="pb-2">Timestamp</th>
+                <th className="pb-2">Coin</th>
+                <th className="pb-2">Side</th>
+                <th className="pb-2 text-right">Price</th>
+                <th className="pb-2 text-right">Amount</th>
+                <th className="pb-2 text-right">Time Left</th>
+                <th className="pb-2 text-right">Spread</th>
+                <th className="pb-2">Outcome</th>
+                <th className="pb-2 text-right">P&L</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.recentTrades.map((trade, idx) => (
+                <tr key={idx} className="border-t border-gray-800">
+                  <td className="py-2 font-mono text-xs">
+                    {new Date(trade.timestamp).toLocaleString()}
+                  </td>
+                  <td className="py-2 font-mono text-xs">{trade.coin}</td>
+                  <td className="py-2">
+                    <span
+                      className={
+                        trade.side === "YES"
+                          ? "text-green-400"
+                          : "text-red-400"
+                      }
+                    >
+                      {trade.side}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right font-mono">
+                    {trade.entry_price.toFixed(3)}
+                  </td>
+                  <td className="py-2 text-right">${trade.amount_usdc.toFixed(0)}</td>
+                  <td className="py-2 text-right font-mono text-xs">
+                    {trade.time_remaining >= 60
+                      ? `${Math.floor(trade.time_remaining / 60)}m ${Math.round(trade.time_remaining % 60)}s`
+                      : `${Math.round(trade.time_remaining)}s`}
+                  </td>
+                  <td className="py-2 text-right font-mono text-xs">${trade.spread.toFixed(3)}</td>
+                  <td className="py-2">
+                    <span
+                      className={
+                        trade.outcome.toLowerCase() === "win"
+                          ? "text-green-400"
+                          : trade.outcome.toLowerCase() === "loss"
+                          ? "text-red-400"
+                          : "text-yellow-400"
+                      }
+                    >
+                      {trade.outcome.toUpperCase()}
+                    </span>
+                  </td>
+                  <td
+                    className={`py-2 text-right font-mono ${
+                      trade.profit_loss >= 0
+                        ? "text-green-400"
+                        : "text-red-400"
+                    }`}
                   >
-                    <div className="min-w-0 flex-1 mr-3">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`text-xs font-medium px-1.5 py-0.5 rounded shrink-0 ${
-                            t.side === "BUY"
-                              ? "bg-green-900/40 text-green-400"
-                              : "bg-red-900/40 text-red-400"
-                          }`}
-                        >
-                          {t.side}
-                        </span>
-                        <span className="text-sm text-white truncate">
-                          {t.title}
-                        </span>
-                      </div>
-                      <p className="text-xs text-zinc-500 mt-0.5">
-                        {formatTradeTime(t.timestamp)} &middot; {t.outcome}{" "}
-                        &middot; {t.size.toFixed(2)} @ ${t.price.toFixed(3)}
-                      </p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <p className="text-sm text-zinc-300">
-                        {formatUsd(t.usdcSize)}
-                      </p>
-                      {t.transactionHash && (
-                        <a
-                          href={`https://polygonscan.com/tx/${t.transactionHash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-blue-400 hover:text-blue-300"
-                        >
-                          tx
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                    ${trade.profit_loss.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-          {/* Footer */}
-          <div className="mt-4 text-center text-xs text-zinc-600">
-            Auto-refresh 20s
+      {/* AI Brain Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Current Parameters */}
+        <div className="border border-gray-800 rounded-lg p-4 bg-black/50">
+          <h2 className="text-lg font-bold mb-4">CURRENT PARAMETERS</h2>
+          <pre className="text-xs font-mono text-gray-300 overflow-x-auto">
+            {JSON.stringify(data.currentParams, null, 2)}
+          </pre>
+        </div>
+
+        {/* Recent AI Adjustments */}
+        <div className="border border-gray-800 rounded-lg p-4 bg-black/50">
+          <h2 className="text-lg font-bold mb-4">RECENT AI ADJUSTMENTS</h2>
+          <div className="space-y-3">
+            {data.recentAdjustments.map((adj, idx) => (
+              <div key={idx} className="text-xs">
+                <div className="text-gray-500 mb-1">{adj.timestamp}</div>
+                <div className="text-gray-300 whitespace-pre-wrap font-mono">
+                  {adj.content.split("\n").slice(1).join("\n")}
+                </div>
+              </div>
+            ))}
           </div>
-        </>
-      )}
+        </div>
+
+        {/* Strategy Journal */}
+        <div className="border border-gray-800 rounded-lg p-4 bg-black/50 lg:col-span-2">
+          <h2 className="text-lg font-bold mb-4">STRATEGY JOURNAL</h2>
+          <div className="prose prose-invert prose-sm max-w-none">
+            <pre className="text-xs text-gray-300 whitespace-pre-wrap font-mono">
+              {data.strategyJournal}
+            </pre>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function Card({
+function StatCard({
   label,
   value,
-  valueClass = "text-white",
+  valueColor,
 }: {
   label: string;
   value: string;
-  valueClass?: string;
+  valueColor: string;
 }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-3">
-      <p className="text-xs text-zinc-500 uppercase tracking-wider mb-1">
-        {label}
-      </p>
-      <p className={`text-lg font-bold ${valueClass}`}>{value}</p>
+    <div className="border border-gray-800 rounded-lg p-4 bg-black/50">
+      <div className="text-sm text-gray-400 mb-2">{label}</div>
+      <div className={`text-3xl font-bold ${valueColor}`}>{value}</div>
+    </div>
+  );
+}
+
+function PnLChart({
+  data,
+}: {
+  data: Array<{ index: number; pnl: number; timestamp: string }>;
+}) {
+  if (data.length === 0) return null;
+
+  const width = 800;
+  const height = 200;
+  const padding = { top: 20, right: 20, bottom: 30, left: 60 };
+
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  const maxIndex = data.length - 1;
+  const minPnl = Math.min(0, ...data.map((d) => d.pnl));
+  const maxPnl = Math.max(0, ...data.map((d) => d.pnl));
+  const pnlRange = maxPnl - minPnl;
+
+  const points = data
+    .map((d) => {
+      const x = (d.index / maxIndex) * chartWidth + padding.left;
+      const y =
+        height -
+        padding.bottom -
+        ((d.pnl - minPnl) / pnlRange) * chartHeight;
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const finalPnl = data[data.length - 1].pnl;
+  const lineColor = finalPnl >= 0 ? "#4ade80" : "#f87171";
+
+  return (
+    <div className="w-full overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${width} ${height}`}
+        className="w-full"
+        style={{ maxWidth: "100%" }}
+      >
+        {/* Y-axis */}
+        <line
+          x1={padding.left}
+          y1={padding.top}
+          x2={padding.left}
+          y2={height - padding.bottom}
+          stroke="#374151"
+          strokeWidth="1"
+        />
+        {/* X-axis */}
+        <line
+          x1={padding.left}
+          y1={height - padding.bottom}
+          x2={width - padding.right}
+          y2={height - padding.bottom}
+          stroke="#374151"
+          strokeWidth="1"
+        />
+        {/* Zero line */}
+        {minPnl < 0 && maxPnl > 0 && (
+          <line
+            x1={padding.left}
+            y1={
+              height - padding.bottom - (-minPnl / pnlRange) * chartHeight
+            }
+            x2={width - padding.right}
+            y2={
+              height - padding.bottom - (-minPnl / pnlRange) * chartHeight
+            }
+            stroke="#4b5563"
+            strokeWidth="1"
+            strokeDasharray="4"
+          />
+        )}
+        {/* P&L line */}
+        <polyline
+          points={points}
+          fill="none"
+          stroke={lineColor}
+          strokeWidth="2"
+        />
+        {/* Y-axis labels */}
+        <text
+          x={padding.left - 10}
+          y={padding.top}
+          textAnchor="end"
+          fill="#9ca3af"
+          fontSize="12"
+        >
+          ${maxPnl.toFixed(0)}
+        </text>
+        <text
+          x={padding.left - 10}
+          y={height - padding.bottom}
+          textAnchor="end"
+          fill="#9ca3af"
+          fontSize="12"
+        >
+          ${minPnl.toFixed(0)}
+        </text>
+        {/* X-axis label */}
+        <text
+          x={width / 2}
+          y={height - 5}
+          textAnchor="middle"
+          fill="#9ca3af"
+          fontSize="12"
+        >
+          Trade Number
+        </text>
+      </svg>
     </div>
   );
 }

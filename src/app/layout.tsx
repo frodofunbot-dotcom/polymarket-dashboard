@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Polymarket Dashboard",
-  description: "Live portfolio tracker",
+  title: "Sniper Bot Dashboard",
+  description: "Performance tracking for Polymarket sniper bot",
 };
 
 export default function RootLayout({
